@@ -127,9 +127,9 @@ async function changeVersion(
 		.filter((tuple) => tuple[1] === vscode.FileType.File)
 		.map((tuple) => vscode.Uri.joinPath(newVersion.uri, tuple[0]).fsPath);
 
-	updateTsPluginConfig(isEnabled(context) ? filePaths : []);
-
 	await vscode.commands.executeCommand("typescript.restartTsServer");
+
+	updateTsPluginConfig(isEnabled(context) ? filePaths : []);
 }
 
 async function listVersionsQuickPick(
