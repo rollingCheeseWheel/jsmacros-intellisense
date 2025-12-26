@@ -1,5 +1,5 @@
 {
-	"include": ["tsplugin", "src", "test"],
+	"include": ["src", "test"],
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "ES2022",
