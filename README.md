@@ -24,12 +24,27 @@ All declarations live in the global extension storage, the list of available ver
 
 ## Config
 
-* `repoUrl`: URL to the JsMacros GitHub repo
-* `assetRegExp`: Regular Expression used to filter for the TS declarations
+* `repoUrl`: URL to the JsMacros GitHub repo.
+* `assetRegExp`: Regular Expression used to filter for the TS declarations in release assets.
+* `askWhenMultipleWorkspaces`: When actions can only target one workspace ask which one to use.
 
 ## Known Issues
 
-* Not version control system-friendly since state is stored in VSCode and not the file system
-* Unpredictable behaviour might occur when deleting versions
-* Unpredictable behaviour might occur when manually adding versions to the global extension storage
-* Type hints currently don't work, the logic to inject the `.d.ts` files is not working. (currently through a TS plugin / language service)
+* Variables might clash, to fix this make the macro a module by importing/exporting something.
+
+```ts
+export {}
+
+let commandBuilder = Chat.getCommandManager().createCommandBuilder("rejoin"); //  might clash
+commandBuilder.executes(JavaWrapper.methodToJava(rejoin))
+commandBuilder.register()
+
+function rejoin(){ // might clash
+    GlobalVars.putString("server", World.getCurrentServerAddress().split("/")[1])
+    Client.disconnect()
+    Time.sleep(1)
+    Client.connect(GlobalVars.getString("server"))
+}
+```
+
+* Some delcared variables, for example `event` is of type [`Events.BaseEvent`](https://jsmacros.wagyourtail.xyz/?/1.9.2/xyz/wagyourtail/jsmacros/core/event/BaseEvent.html) and properties like [`text` from `RecvMessage`](https://jsmacros.wagyourtail.xyz/?/1.9.2/xyz/wagyourtail/jsmacros/client/api/event/impl/EventRecvMessage.html) dont exist on it. **This is neither the fault of JsMacros nor the extension**. The best solution is to either cast `event` (in TypeScript files) or use `// @ts-ignore`.
