@@ -2,7 +2,7 @@
 	"name": "jsmacros-intellisense",
 	"displayName": "JsMacros Intellisense",
 	"description": "Adds type hints to your scripts",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"icon": "jsmacros.png",
 	"publisher": "rollingcheesewheel",
 	"repository": {
