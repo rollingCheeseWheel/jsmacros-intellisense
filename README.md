@@ -1,71 +1,35 @@
-# jsmacros-intellisense README
+# JsMacros Intellisense
 
-This is the README for your extension "jsmacros-intellisense". After writing up a brief description, we recommend including the following sections.
+A Visual Studio Code extension that adds type hints for [JsMacros](https://github.com/JsMacros/JsMacros) JavaScript macros.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+* **Type hints**: currently only adds the decalarations to the TypeScript server (also used for JavaScript files) and thus the types cannot be imported, JavaScript is reccommended.
+* **Version Management**: multiple versions of declarations can be downloaded, select one to be in current use.
 
-For example if there is an image subfolder under your extension project workspace:
+## Usage
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Open a workspace
+2. Run either `JsMacros Intellisense: fetch newest declarations` or `JsMacros Intellisense: fetch a specific declaration version`, the downloaded version will automatically be selected as the current one. If you already have a version downloaded use `JsMacros Intellisense: change the declaration version for your current workspace` and select one.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Commands
 
-## Requirements
+All declarations live in the global extension storage, the list of available versions is driven by its contents. The currently selected version is stored as an entry in the workspace state (`vscode.ExtensionContext.workspaceState`) and should always be changed through commands.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+* `fetch newest declarations`: fetches the newest version and saves them as `latest`. After downloading it will not be checked for updates
+* `fetch a specific declaration version`: shows a version selection, fetches one and saves it as the name of the release, for example `Release 1.9.2`. If the specific version is the newest it will not be saved as `latest`.
+* `change the declaration version for your current workspace`
+* `list all currently installed versions`
+* `remove declarations for a specific version`
 
-## Extension Settings
+## Config
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+* `repoUrl`: URL to the JsMacros GitHub repo
+* `assetRegExp`: Regular Expression used to filter for the TS declarations
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+* Not version control system-friendly since state is stored in VSCode and not the file system
+* Unpredictable behaviour might occur when deleting versions
+* Unpredictable behaviour might occur when manually adding versions to the global extension storage
+* Type hints currently don't work, the logic to inject the `.d.ts` files is not working. (currently through a TS plugin / language service)
