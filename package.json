@@ -4,6 +4,7 @@
 	"description": "Adds type hints to your scripts",
 	"version": "1.0.0",
 	"icon": "jsmacros.png",
+	"publisher": "rollingcheesewheel",
 	"repository": {
 		"url": "https://github.com/rollingCheeseWheel/jsmacros-intellisense",
 		"type": "git"
