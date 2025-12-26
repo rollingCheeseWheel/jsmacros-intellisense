@@ -10,8 +10,9 @@ import {
 } from "./versionStorage";
 import { downloadAndExtractDeclarations } from "./download";
 
-export function activate(context: vscode.ExtensionContext): void {
-	vscode.window.showInformationMessage(context.globalStorageUri.fsPath);
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	await vscode.workspace.fs.createDirectory(context.globalStorageUri); // path isn't automatically created when installing extension
+
 	const disposables = registerCommands(context, [
 		["jsmacros-intellisense.fetchNewest", fetchNewest],
 		["jsmacros-intellisense.fetchSpecific", fetchSpecific],
@@ -89,7 +90,7 @@ async function fetchAssetAndChangeVersion(
 async function changeVersion(
 	context: vscode.ExtensionContext,
 	version?: Version | null
-) : Promise<void>{
+): Promise<void> {
 	if (!version) {
 		version = await listVersionsQuickPick(context);
 		if (!version) {
@@ -118,7 +119,9 @@ async function listVersionsQuickPick(
 	return { version: choice.label, uri: choice.uri };
 }
 
-async function removeVersionGlobal(context: vscode.ExtensionContext): Promise<void> {
+async function removeVersionGlobal(
+	context: vscode.ExtensionContext
+): Promise<void> {
 	const versionToDelete = await listVersionsQuickPick(context);
 
 	if (!versionToDelete) {

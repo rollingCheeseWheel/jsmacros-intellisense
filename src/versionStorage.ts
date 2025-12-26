@@ -219,7 +219,7 @@ async function getWorkspaceFolder(
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
 		throw new Error("No workspaces are currently open");
-	} else if (config.askWhenMultipleWorkspaces) {
+	} else if (config.askWhenMultipleWorkspaces && workspaceFolders.length !== 1) {
 		return (await showWorkspaceQuickPick(workspaceFolders))
 			?.workspaceFolder;
 	} else {
