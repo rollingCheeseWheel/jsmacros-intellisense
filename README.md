@@ -1,6 +1,11 @@
 # JsMacros Intellisense
 
-A Visual Studio Code extension that adds type hints for [JsMacros](https://github.com/JsMacros/JsMacros) JavaScript macros.
+A Visual Studio Code extension that adds type hints for [JsMacros](https://github.com/JsMacros/JsMacros) JavaScript macros. This extension is not affiliated with JsMacros.
+
+## Installation
+
+* Install the extension from the [VSCode marketplace](https://marketplace.visualstudio.com/items?itemName=rollingcheesewheel.jsmacros-intellisense)
+* Use the `.vsix` installer from a release
 
 ## Features
 
