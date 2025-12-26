@@ -28,52 +28,46 @@
 			},
 			{
 				"command": "jsmacros-intellisense.changeVersion",
-				"title": "change the declaration version for your current workspace",
+				"title": "change the version for your current workspace",
 				"shortTitle": "change version",
 				"category": "JsMacros Intellisense"
 			},
 			{
-				"command": "jsmacros-intellisense.listVersions",
-				"title": "list all currently installed versions",
+				"command": "jsmacros-intellisense.removeLocal",
+				"title": "remove local version",
+				"shortTitle": "remove local",
+				"category": "JsMacros Intellisense"
+			},
+			{
+				"command": "jsmacros-intellisense.listGlobal",
+				"title": "list all currently installed versions from global storage",
 				"shortTitle": "list versions",
 				"category": "JsMacros Intellisense"
 			},
 			{
-				"command": "jsmacros-intellisense.changeEnabled",
-				"title": "enable or disable type hints",
-				"shortTitle": "enable or disable",
+				"command": "jsmacros-intellisense.removeGlobal",
+				"title": "remove declarations for a specific version from global storage",
+				"shortTitle": "remove global",
 				"category": "JsMacros Intellisense"
-			},
-			{
-				"command": "jsmacros-intellisense.deleteVersion",
-				"title": "remove declarations for a specific version",
-				"shortTitle": "remove version",
-				"category": "JsMacros Intellisense"
-			}
-		],
-		"typescriptServerPlugins": [
-			{
-				"name": "tsplugin",
-				"enableForWorkspaceTypeScriptVersions": true
 			}
 		],
 		"configuration": {
 			"title": "JsMacros Intellisense",
 			"properties": {
 				"jsmacros-intellisense.repoUrl": {
-					"type": "string",
 					"markdownDescription": "URL to the `JsMacros GitHub repo`, needed to fetch the TypeScript declarations",
+					"type": "string",
 					"default": "https://github.com/JsMacros/JsMacros",
 					"pattern": "^https:\\/\\/github.com\\/[\\w.-]+\\/[\\w.-]+$"
 				},
 				"jsmacros-intellisense.assetRegExp": {
-					"type": "string",
 					"markdownDescription": "Regular Expression to filter the release for the asset containing the declarations",
+					"type": "string",
 					"default": "^typescript"
 				},
-				"jsmacros-intellisense.enabledByDefault": {
+				"jsmacros-intellisense.askWhenMultipleWorkspaces": {
+					"markdownDescription": "When actions can only target one workspace ask which to use.",
 					"type": "boolean",
-					"markdownDescription": "Whether or not hints should be loaded by default",
 					"default": true
 				}
 			}
@@ -95,12 +89,11 @@
 		"@vscode/test-cli": "^0.0.12",
 		"@vscode/test-electron": "^2.5.2",
 		"eslint": "^9.39.1",
-		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.48.1"
 	},
 	"dependencies": {
 		"@octokit/rest": "^22.0.1",
-		"tsplugin": "file:./tsplugin",
+		"jsonc-parser": "^3.3.1",
 		"unzipper": "^0.12.3"
 	}
 }

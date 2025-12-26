@@ -1,93 +1,69 @@
 import * as vscode from "vscode";
-import { getNewestAsset, getSpecificAsset } from "./declarations/getAsset";
+import { DeclarationAsset, getNewestAsset, getSpecificAsset } from "./asset";
 import {
-	createVersion,
-	deleteVersion as deleteVersionFromStorage,
-	getCurrentVersion,
-	isEnabled,
-	listVersions,
-	setCurrentVersion,
-	setEnabled,
+	getOrCreateVersionDirectoryGlobal,
+	deleteVersionGlobal as deleteVersionFromStorage,
+	listVersionsGlobal,
 	Version,
+	setCurrentVersion,
+	removeCurrentVersion as removeVersionLocal,
 } from "./versionStorage";
-import { downloadAndExtractDeclarations } from "./declarations/download";
+import { downloadAndExtractDeclarations } from "./download";
 
-export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext): void {
 	vscode.window.showInformationMessage(context.globalStorageUri.fsPath);
-
-	const fetchNewestDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.fetchNewest",
-		async () => {
-			await fetchNewest(context);
-			const version = await createVersion(context, "latest");
-			if (!version) {
-				return;
-			}
-			await changeVersion(context, version);
-		}
-	);
-
-	const fetchSpecificVersionDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.fetchSpecific",
-		async () => {
-			await fetchSpecific(context);
-			// const versions = await listVersions(context);
-			// if (!versions[0]) {
-			// 	return;
-			// }
-			// await changeVersion(context, versions[0]);
-		}
-	);
-
-	const changeVersionDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.changeVersion",
-		async () => await changeVersion(context)
-	);
-
-	const listVersionsDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.listVersions",
-		async () => await listVersionsQuickPick(context)
-	);
-
-	const changeEnabledDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.changeEnabled",
-		async () => await changeEnabled(context)
-	);
-
-	const deleteVersionDisposable = vscode.commands.registerCommand(
-		"jsmacros-intellisense.deleteVersion",
-		async () => await deleteVersion(context)
-	);
-
-	context.subscriptions.push(
-		fetchNewestDisposable,
-		fetchSpecificVersionDisposable,
-		changeVersionDisposable,
-		listVersionsDisposable,
-		changeEnabledDisposable,
-		deleteVersionDisposable
-	);
+	const disposables = registerCommands(context, [
+		["jsmacros-intellisense.fetchNewest", fetchNewest],
+		["jsmacros-intellisense.fetchSpecific", fetchSpecific],
+		["jsmacros-intellisense.changeVersion", changeVersion],
+		["jsmacros-intellisense.removeLocal", removeVersionLocal],
+		["jsmacros-intellisense.listGlobal", listVersionsQuickPick],
+		["jsmacros-intellisense.removeGlobal", removeVersionGlobal],
+	]);
+	context.subscriptions.push(...disposables);
 }
 
-export function deactivate() {}
+type Command = [string, (context: vscode.ExtensionContext) => Promise<any>];
 
-async function fetchNewest(context: vscode.ExtensionContext) {
+function registerCommands(
+	context: vscode.ExtensionContext,
+	commands: Command[]
+): vscode.Disposable[] {
+	return commands.map((command) => {
+		return vscode.commands.registerCommand(command[0], async () =>
+			command[1](context)
+		);
+	});
+}
+
+export function deactivate(): void {}
+
+async function fetchNewest(context: vscode.ExtensionContext): Promise<void> {
 	const asset = await getNewestAsset();
-	await fetchAsset(context, asset);
-	vscode.window.showInformationMessage("Successfully fetched declarations");
+	if (!asset) {
+		throw new Error("Unable to get newest release");
+	}
+	await fetchAssetAndChangeVersion(context, asset);
+	vscode.window.showInformationMessage("Successfully fetched version");
 }
 
-async function fetchSpecific(context: vscode.ExtensionContext) {
+async function fetchSpecific(context: vscode.ExtensionContext): Promise<void> {
 	const asset = await getSpecificAsset();
 	if (!asset) {
 		return;
 	}
-	await fetchAsset(context, asset);
-	vscode.window.showInformationMessage("Successfully fetched declarations");
+	await fetchAssetAndChangeVersion(context, asset);
+	vscode.window.showInformationMessage("Successfully fetched version");
 }
 
-async function fetchAsset(context: vscode.ExtensionContext, asset: any) {
-	const versionDir = await createVersion(context, asset.releaseName);
+async function fetchAssetAndChangeVersion(
+	context: vscode.ExtensionContext,
+	asset: DeclarationAsset
+): Promise<void> {
+	const versionDir = await getOrCreateVersionDirectoryGlobal(
+		context,
+		asset.releaseName
+	);
 
 	if (!versionDir) {
 		throw new Error(
@@ -98,18 +74,22 @@ async function fetchAsset(context: vscode.ExtensionContext, asset: any) {
 		);
 	}
 
-	const path = await downloadAndExtractDeclarations(
-		asset.asset.browser_download_url,
-		versionDir.uri
-	);
+	await downloadAndExtractDeclarations(asset, versionDir.uri);
 
-	await changeVersion(context, versionDir);
+	const version = await getOrCreateVersionDirectoryGlobal(
+		context,
+		asset.releaseName
+	);
+	if (!version) {
+		throw new Error("Unable to create version directory");
+	}
+	await changeVersion(context, version);
 }
 
 async function changeVersion(
 	context: vscode.ExtensionContext,
 	version?: Version | null
-) {
+) : Promise<void>{
 	if (!version) {
 		version = await listVersionsQuickPick(context);
 		if (!version) {
@@ -117,28 +97,17 @@ async function changeVersion(
 		}
 	}
 
-	setCurrentVersion(context, version);
-
-	const newVersion = await getCurrentVersion(context);
-	if (!newVersion) {
-		throw new Error("Unable to change current version");
-	}
-	const filePaths = (await vscode.workspace.fs.readDirectory(newVersion.uri))
-		.filter((tuple) => tuple[1] === vscode.FileType.File)
-		.map((tuple) => vscode.Uri.joinPath(newVersion.uri, tuple[0]).fsPath);
-
-	await vscode.commands.executeCommand("typescript.restartTsServer");
-
-	updateTsPluginConfig(isEnabled(context) ? filePaths : []);
+	await setCurrentVersion(version);
+	vscode.window.showInformationMessage("Successfully changed version");
 }
 
 async function listVersionsQuickPick(
 	context: vscode.ExtensionContext
 ): Promise<Version | null> {
-	const items = await listVersions(context);
+	const items = await listVersionsGlobal(context);
 	const choice = await vscode.window.showQuickPick(
 		items.map((i) => ({
-			label: i.version + (i.current ? " (current)" : ""),
+			label: i.version,
 			description: i.uri.fsPath,
 			uri: i.uri,
 		}))
@@ -149,24 +118,7 @@ async function listVersionsQuickPick(
 	return { version: choice.label, uri: choice.uri };
 }
 
-async function changeEnabled(context: vscode.ExtensionContext) {
-	const choice = await vscode.window.showQuickPick([
-		{
-			label: "on",
-			value: true,
-		},
-		{ label: "off", value: false },
-	]);
-	const currentVersion = await getCurrentVersion(context);
-	if (!choice || !currentVersion) {
-		return;
-	}
-	await setEnabled(context, choice.value);
-	await changeVersion(context, currentVersion);
-	vscode.window.showInformationMessage(`Turned hints ${choice.label}`);
-}
-
-async function deleteVersion(context: vscode.ExtensionContext) {
+async function removeVersionGlobal(context: vscode.ExtensionContext): Promise<void> {
 	const versionToDelete = await listVersionsQuickPick(context);
 
 	if (!versionToDelete) {
@@ -179,36 +131,4 @@ async function deleteVersion(context: vscode.ExtensionContext) {
 	vscode.window.showInformationMessage(
 		`${result} deleted version ${versionToDelete?.version}`
 	);
-}
-
-interface TsPluginConfig {
-	absolutePaths: string[];
-}
-
-async function updateTsPluginConfig(absPaths: string[]) {
-	const tsExtension = vscode.extensions.getExtension(
-		"vscode.typescript-language-features"
-	);
-	if (!tsExtension) {
-		throw new Error("Could not load TS extension");
-	}
-
-	await tsExtension.activate();
-
-	if (!tsExtension.exports || !tsExtension.exports.getAPI) {
-		throw new Error(
-			"TS extension does not expose API, unable to load hints"
-		);
-	}
-
-	const tsPluginAPI = tsExtension.exports.getAPI(0);
-	if (!tsPluginAPI) {
-		throw new Error("Unexpected error, unable to load hints");
-	}
-
-	const config: TsPluginConfig = {
-		absolutePaths: absPaths,
-	};
-
-	tsPluginAPI.configurePlugin("tsplugin", config);
 }

@@ -23,5 +23,7 @@ export default [{
         eqeqeq: "warn",
         "no-throw-literal": "warn",
         semi: "warn",
+
+        "@typescript-eslint/explicit-function-return-type": "warn"
     },
 }];

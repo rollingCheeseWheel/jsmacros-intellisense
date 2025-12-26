@@ -1,11 +1,12 @@
 import * as vscode from "vscode";
 import * as unzipper from "unzipper";
+import { DeclarationAsset } from "./asset";
 
 export async function downloadAndExtractDeclarations(
-	url: string | URL,
+	asset: DeclarationAsset,
 	target: vscode.Uri
-) {
-	const zippedBuffer = await downloadZip(url);
+): Promise<vscode.Uri> {
+	const zippedBuffer = await downloadZip(asset.asset.browser_download_url);
 	const unzippedDir = await extract(zippedBuffer);
 
 	await vscode.workspace.fs.createDirectory(target);
@@ -27,7 +28,7 @@ export async function downloadAndExtractDeclarations(
 	return target;
 }
 
-async function downloadZip(url: string | URL) {
+async function downloadZip(url: string | URL): Promise<Buffer<ArrayBuffer>> {
 	const res = await fetch(url);
 	if (!res.ok) {
 		throw new Error(`Unable to fetch ${url.toString()}: ${res.statusText}`);
@@ -36,6 +37,8 @@ async function downloadZip(url: string | URL) {
 	return buffer;
 }
 
-async function extract(buffer: Buffer<ArrayBuffer>) {
+async function extract(
+	buffer: Buffer<ArrayBuffer>
+): Promise<unzipper.CentralDirectory> {
 	return await unzipper.Open.buffer(buffer);
 }
