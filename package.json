@@ -16,9 +16,18 @@
 	"categories": [
 		"Other"
 	],
-	"activationEvents": [],
+	"activationEvents": [
+		"onLanguage:typescript",
+		"onLanguage:javascript"
+	],
 	"main": "./out/src/extension.js",
 	"contributes": {
+		"typescriptServerPlugins": [
+			{
+				"enableForWorkspaceTypeScriptVersions": true,
+				"name": "ts-plugin"
+			}
+		],
 		"commands": [
 			{
 				"command": "jsmacros-intellisense.fetchNewest",
@@ -75,6 +84,11 @@
 					"markdownDescription": "When actions can only target one workspace ask which to use.",
 					"type": "boolean",
 					"default": true
+				},
+				"jsmacros-intellisense.experimentalHinting": {
+					"markdownDescription": "Use a TypeScript server plugin for hinting instead of generating a `tsconfig.json` and copying the declarations into the macros folder",
+					"type": "boolean",
+					"default": false
 				}
 			}
 		}
@@ -100,6 +114,7 @@
 	"dependencies": {
 		"@octokit/rest": "^22.0.1",
 		"jsonc-parser": "^3.3.1",
-		"unzipper": "^0.12.3"
+		"unzipper": "^0.12.3",
+		"ts-plugin": "file:./ts-plugin"
 	}
 }

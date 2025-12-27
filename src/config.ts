@@ -5,6 +5,7 @@ export const defaultConfig: JsMIntellisenseConfig = {
 	repo: "JsMacros",
 	assetRegExp: /^typescript/,
 	askWhenMultipleWorkspaces: true,
+	experimentalHinting: false,
 };
 
 export interface JsMIntellisenseConfig {
@@ -12,6 +13,7 @@ export interface JsMIntellisenseConfig {
 	repo: string;
 	assetRegExp: RegExp;
 	askWhenMultipleWorkspaces: boolean;
+	experimentalHinting: boolean;
 }
 
 export function getConfig(
@@ -44,10 +46,16 @@ export function getConfig(
 		throw new Error("Config: askWhenMultipleWorkspaces not specified");
 	}
 
+	const experimentalHinting = config.get<boolean>("experimentalHinting");
+	if (experimentalHinting === undefined) {
+		throw new Error("Config: experimentalHinting not specified");
+	}
+
 	return {
 		owner: matches[1],
 		repo: matches[2],
 		assetRegExp: new RegExp(assetRegexString),
 		askWhenMultipleWorkspaces: askWhenMultipleWorkspaces,
+		experimentalHinting: experimentalHinting,
 	};
 }

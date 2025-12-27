@@ -1,30 +1,18 @@
 import * as vscode from "vscode";
 import { getConfig, JsMIntellisenseConfig } from "./config";
-import { applyEdits, modify } from "jsonc-parser";
+import {
+	editAndSaveTsConfig,
+	generalIncludeGlobs,
+	removeDeclarationsFromTsConfig,
+	updateTsConfig,
+} from "./tsconfig";
+import { promises } from "dns";
 
-export const dtsDirectoryName = ".jsm_types";
 export const versionJsonName = "version.json";
+export const dtsDirectoryName = ".jsm_types";
 export const tsConfigFileName = "tsconfig.json";
-export const generalIncludeGlobs = [
-	`${dtsDirectoryName}/**/*.d.ts`,
-	"**/*.ts",
-	"**/*.js",
-];
-export const compilerOptionsChanges: [string[], (disabling: boolean) => any][] =
-	[
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "skipLibCheck"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "checkJs"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "noEmit"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "noCheck"], (e) => !e],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "lib"], () => ["es2022"]],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "isolatedModules"], () => true]
-	];
+
+export const currentVersionStateKey = "jsmacros-intellisense-current";
 
 export interface VersionJson {
 	version: string;
@@ -36,44 +24,49 @@ export interface Version {
 }
 
 export interface LocalVersion extends Version {
-	workspaceUri: vscode.Uri;
+	workspaceUri: vscode.Uri | undefined;
 }
 
-let logCounter = 0;
-function log(message: string): void {
-	vscode.window.showInformationMessage(`[${logCounter}] ${message}`);
-	logCounter++;
-}
-
-export async function setCurrentVersion(version: Version): Promise<boolean> {
+export async function setCurrentVersion(
+	context: vscode.ExtensionContext,
+	version: Version
+): Promise<boolean> {
 	if (!(await verifyStructureGlobal(version.uri))) {
 		throw new Error(
-			`Folder of version ${version} does not meet requiredments`
+			`Folder of version ${version} does not meet requirements`
 		);
 	}
 
-	const workspaceFolder = await getWorkspaceFolder();
-	if (!workspaceFolder) {
-		return false;
+	if (getConfig().experimentalHinting) {
+		context.workspaceState.update(currentVersionStateKey, version.version);
+		return true;
+	} else {
+		const workspaceFolder = await getWorkspaceFolder();
+		if (!workspaceFolder) {
+			return false;
+		}
+
+		const dtsUri = vscode.Uri.joinPath(
+			workspaceFolder.uri,
+			dtsDirectoryName
+		);
+		await vscode.workspace.fs.createDirectory(dtsUri);
+		await vscode.workspace.fs.delete(dtsUri, { recursive: true });
+		await vscode.workspace.fs.createDirectory(dtsUri);
+		await vscode.workspace.fs.copy(
+			version.uri,
+			vscode.Uri.joinPath(workspaceFolder.uri, dtsDirectoryName),
+			{ overwrite: true }
+		);
+
+		await createOrUpdateVersionJson(dtsUri, { version: version.version });
+
+		await updateTsConfig(
+			vscode.Uri.joinPath(workspaceFolder.uri, tsConfigFileName)
+		);
+
+		return true;
 	}
-
-	const dtsUri = vscode.Uri.joinPath(workspaceFolder.uri, dtsDirectoryName);
-	await vscode.workspace.fs.createDirectory(dtsUri);
-	await vscode.workspace.fs.delete(dtsUri, { recursive: true });
-	await vscode.workspace.fs.createDirectory(dtsUri);
-	await vscode.workspace.fs.copy(
-		version.uri,
-		vscode.Uri.joinPath(workspaceFolder.uri, dtsDirectoryName),
-		{ overwrite: true }
-	);
-
-	await createOrUpdateVersionJson(dtsUri, { version: version.version });
-
-	await updateTsConfig(
-		vscode.Uri.joinPath(workspaceFolder.uri, tsConfigFileName)
-	);
-
-	return true;
 }
 
 async function createOrUpdateVersionJson(
@@ -88,108 +81,70 @@ async function createOrUpdateVersionJson(
 export async function removeCurrentVersion(
 	context: vscode.ExtensionContext
 ): Promise<void> {
-	const localVersion = await getCurrentVersion(context);
-	if (!localVersion) {
-		throw new Error("No current version set");
-	}
+	if (getConfig().experimentalHinting) {
+		context.workspaceState.update(currentVersionStateKey, undefined);
+	} else {
+		const localVersion = await getCurrentVersion(context);
+		if (!localVersion) {
+			throw new Error("No current version set");
+		}
 
-	const dtsDirectoryUri = vscode.Uri.joinPath(
-		localVersion.workspaceUri,
-		dtsDirectoryName
-	);
-	await vscode.workspace.fs.delete(dtsDirectoryUri, { recursive: true });
-	const tsConfigUri = vscode.Uri.joinPath(
-		localVersion.workspaceUri,
-		tsConfigFileName
-	);
-	await removeDeclarationsFromTsConfig(tsConfigUri);
-}
-
-interface TsConfigInclude {
-	include?: string[];
-}
-
-async function updateTsConfig(
-	tsConfigUri: vscode.Uri,
-	globPatterns: string[] = generalIncludeGlobs
-): Promise<void> {
-	try {
-		await vscode.workspace.fs.readFile(tsConfigUri);
-	} catch {
-		const content = JSON.stringify({}, null, "\t");
-		await vscode.workspace.fs.writeFile(
-			tsConfigUri,
-			new TextEncoder().encode(content)
+		const dtsDirectoryUri = vscode.Uri.joinPath(
+			localVersion.workspaceUri!,
+			dtsDirectoryName
 		);
+		await vscode.workspace.fs.delete(dtsDirectoryUri, { recursive: true });
+		const tsConfigUri = vscode.Uri.joinPath(
+			localVersion.workspaceUri!,
+			tsConfigFileName
+		);
+		await removeDeclarationsFromTsConfig(tsConfigUri);
 	}
-
-	const tsConfigContent = new TextDecoder().decode(
-		await vscode.workspace.fs.readFile(tsConfigUri)
-	);
-	const stdJsonConfig = JSON.parse(tsConfigContent) as TsConfigInclude;
-
-	const includes = Array.from(
-		new Set<string>([...(stdJsonConfig.include ?? []), ...globPatterns])
-	);
-	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes, true);
-}
-
-async function removeDeclarationsFromTsConfig(
-	tsConfigUri: vscode.Uri
-): Promise<void> {
-	const tsConfigContent = new TextDecoder().decode(
-		await vscode.workspace.fs.readFile(tsConfigUri)
-	);
-	const stdJsonConfig = JSON.parse(tsConfigContent) as TsConfigInclude;
-
-	const includes = [...(stdJsonConfig.include ?? [])];
-	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes, false);
-}
-
-async function editAndSaveTsConfig(
-	tsConfigUri: vscode.Uri,
-	content: string,
-	includes: string[],
-	enabling: boolean
-): Promise<void> {
-	const formattingOptions = {
-		formattingOptions: { tabSize: 4 },
-	};
-
-	for (const [path, fun] of compilerOptionsChanges) {
-		// make compiler options changes
-		const edits = modify(content, path, fun(enabling), formattingOptions);
-		content = applyEdits(content, edits);
-	}
-
-	const edits = modify(content, ["include"], includes, formattingOptions);
-	content = applyEdits(content, edits);
-
-	await vscode.workspace.fs.writeFile(
-		tsConfigUri,
-		new TextEncoder().encode(content)
-	);
 }
 
 export async function getCurrentVersion(
 	context: vscode.ExtensionContext
 ): Promise<LocalVersion | undefined> {
-	const workspaceFolder = await getWorkspaceFolder();
-	log(`workspace folder: ${workspaceFolder}`);
-	if (!workspaceFolder) {
-		return;
+	let currentVersionString: string | undefined = undefined;
+
+	if (getConfig().experimentalHinting) {
+		currentVersionString = context.workspaceState.get<string>(
+			currentVersionStateKey
+		);
+	} else {
+		const workspace = await getWorkspaceFolder();
+		if (!workspace) {
+			return;
+		}
+		currentVersionString = await getCurrentVersionString(workspace);
 	}
-	const currentVersionString = await getCurrentVersionString(workspaceFolder);
 	if (!currentVersionString) {
 		return;
 	}
+
 	const globalVersions = await listVersionsGlobal(context);
 	const matching = globalVersions.find(
 		(v) => v.version === currentVersionString
 	);
 	if (!matching) {
 		return;
+	}
+	if (getConfig().experimentalHinting) {
+		return {
+			...matching,
+			workspaceUri: undefined,
+		};
 	} else {
+		const workspaceFolder = await getWorkspaceFolder();
+		if (!workspaceFolder) {
+			return;
+		}
+		const currentVersionString = await getCurrentVersionString(
+			workspaceFolder
+		);
+		if (!currentVersionString) {
+			return;
+		}
 		return {
 			...matching,
 			workspaceUri: workspaceFolder.uri,
@@ -219,7 +174,10 @@ async function getWorkspaceFolder(
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
 		throw new Error("No workspaces are currently open");
-	} else if (config.askWhenMultipleWorkspaces && workspaceFolders.length !== 1) {
+	} else if (
+		config.askWhenMultipleWorkspaces &&
+		workspaceFolders.length !== 1
+	) {
 		return (await showWorkspaceQuickPick(workspaceFolders))
 			?.workspaceFolder;
 	} else {
@@ -270,7 +228,6 @@ async function verifyStructureLocal(
 ): Promise<VersionJson | undefined> {
 	const files = await vscode.workspace.fs.readDirectory(uri);
 	if (!(await verifyStructureGlobal(uri, files))) {
-		log("global structure not verified");
 		return;
 	}
 	for (const file of files) {
@@ -287,7 +244,6 @@ async function verifyStructureLocal(
 		return parsedVersionJson;
 	}
 
-	log("local structure not verified");
 	return;
 }
 
@@ -344,4 +300,12 @@ async function getVersionGlobal(
 	return (await listVersionsGlobal(context)).find(
 		(v) => v.version === version
 	);
+}
+
+export async function getAbsolutePathsToDefinitions(
+	version: Version
+): Promise<string[]> {
+	return (await vscode.workspace.fs.readDirectory(version.uri))
+		.filter((f) => f[1] === vscode.FileType.File)
+		.map((f) => vscode.Uri.joinPath(version.uri, f[0]).fsPath);
 }

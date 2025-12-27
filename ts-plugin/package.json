@@ -1,0 +1,16 @@
+{
+  "name": "ts-plugin",
+  "version": "1.0.0",
+  "description": "TypeScript server plugin for JsMacros Intellisense Extension",
+  "license": "MIT",
+  "author": "rollingCheeseWheel",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "compile": "tsc -p ./"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  }
+}

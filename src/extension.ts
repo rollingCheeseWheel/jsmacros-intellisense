@@ -7,10 +7,20 @@ import {
 	Version,
 	setCurrentVersion,
 	removeCurrentVersion as removeVersionLocal,
+	getAbsolutePathsToDefinitions,
+	getCurrentVersion,
 } from "./versionStorage";
 import { downloadAndExtractDeclarations } from "./download";
+import { PluginConfig } from "ts-plugin/src/config";
+import { getConfig } from "./config";
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+const tsExtensionId = "vscode.typescript-language-features";
+const tsPluginId = "ts-plugin";
+const restartTsServerCommand = "typescript.restartTsServer";
+
+export async function activate(
+	context: vscode.ExtensionContext
+): Promise<void> {
 	await vscode.workspace.fs.createDirectory(context.globalStorageUri); // path isn't automatically created when installing extension
 
 	const disposables = registerCommands(context, [
@@ -98,7 +108,13 @@ async function changeVersion(
 		}
 	}
 
-	await setCurrentVersion(version);
+	await setCurrentVersion(context, version);
+
+	if (getConfig().experimentalHinting) {
+		const absPaths = await getAbsolutePathsToDefinitions(version);
+		await updateTsPlugin({ absPaths: absPaths });
+	}
+
 	vscode.window.showInformationMessage("Successfully changed version");
 }
 
@@ -134,4 +150,39 @@ async function removeVersionGlobal(
 	vscode.window.showInformationMessage(
 		`${result} deleted version ${versionToDelete?.version}`
 	);
+}
+
+async function loadCurrentlySelectedVersion(
+	context: vscode.ExtensionContext
+): Promise<void> {
+	if (!getConfig().experimentalHinting) {
+		return;
+	}
+
+	const currentVersion = await getCurrentVersion(context);
+	if (!currentVersion) {
+		return;
+	}
+	const absPaths = await getAbsolutePathsToDefinitions(currentVersion);
+	await updateTsPlugin({ absPaths: absPaths });
+}
+
+async function updateTsPlugin(config: PluginConfig): Promise<void> {
+	const tsExtension = vscode.extensions.getExtension(tsExtensionId);
+	if (!tsExtension) {
+		return;
+	}
+
+	await tsExtension.activate();
+
+	if (!tsExtension.exports || !tsExtension.exports.getAPI) {
+		return;
+	}
+
+	const api = tsExtension.exports.getAPI(0);
+	if (!api) {
+		return;
+	}
+
+	api.configurePlugin(tsPluginId, config);
 }
