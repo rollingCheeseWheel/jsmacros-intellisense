@@ -305,7 +305,13 @@ async function getVersionGlobal(
 export async function getAbsolutePathsToDefinitions(
 	version: Version
 ): Promise<string[]> {
+	return (await getAbsoluteUrisToDefinitions(version)).map((u) => u.fsPath);
+}
+
+export async function getAbsoluteUrisToDefinitions(
+	version: Version
+): Promise<vscode.Uri[]> {
 	return (await vscode.workspace.fs.readDirectory(version.uri))
 		.filter((f) => f[1] === vscode.FileType.File)
-		.map((f) => vscode.Uri.joinPath(version.uri, f[0]).fsPath);
+		.map((f) => vscode.Uri.joinPath(version.uri, f[0]));
 }

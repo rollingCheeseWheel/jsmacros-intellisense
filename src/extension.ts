@@ -9,19 +9,68 @@ import {
 	removeCurrentVersion as removeVersionLocal,
 	getAbsolutePathsToDefinitions,
 	getCurrentVersion,
+	getAbsoluteUrisToDefinitions,
 } from "./versionStorage";
 import { downloadAndExtractDeclarations } from "./download";
-import { PluginConfig } from "ts-plugin/src/config";
+// import { PluginConfig } from "ts-plugin/src/config";
 import { getConfig } from "./config";
+import {
+	LanguageClient,
+	LanguageClientOptions,
+	ServerOptions as LanguageServerOptions,
+	TextDocumentIdentifier,
+	TextDocumentItem,
+	TransportKind,
+} from "vscode-languageclient/node";
+import * as path from "path";
 
 const tsExtensionId = "vscode.typescript-language-features";
 const tsPluginId = "ts-plugin";
 const restartTsServerCommand = "typescript.restartTsServer";
 
+let client: LanguageClient;
+
 export async function activate(
 	context: vscode.ExtensionContext
 ): Promise<void> {
 	await vscode.workspace.fs.createDirectory(context.globalStorageUri); // path isn't automatically created when installing extension
+
+	const lsPath = context.asAbsolutePath(
+		path.join(
+			"node_modules",
+			"typescript-language-server",
+			"lib",
+			"cli.mjs"
+		)
+	);
+	const serverOptions: LanguageServerOptions = {
+		run: {
+			module: lsPath,
+			args: ["--stdio"],
+			transport: TransportKind.ipc,
+		},
+		debug: {
+			module: lsPath,
+			args: ["--stdio"],
+			transport: TransportKind.ipc,
+		},
+	};
+
+	const clientOptions: LanguageClientOptions = {
+		documentSelector: [
+			{ scheme: "file", language: "typescript" },
+			{ scheme: "file", language: "javascript" },
+		],
+		// synchronize: {
+		// 	fileEvents: vscode.workspace.createFileSystemWatcher()
+		// }
+	};
+
+	client = new LanguageClient(
+		"JsMacros Intellisense LSP Client",
+		serverOptions,
+		clientOptions
+	);
 
 	const disposables = registerCommands(context, [
 		["jsmacros-intellisense.fetchNewest", fetchNewest],
@@ -111,8 +160,9 @@ async function changeVersion(
 	await setCurrentVersion(context, version);
 
 	if (getConfig().experimentalHinting) {
-		const absPaths = await getAbsolutePathsToDefinitions(version);
-		await updateTsPlugin({ absPaths: absPaths });
+		const absPaths = await getAbsoluteUrisToDefinitions(version);
+		await updateLanguageServer(absPaths);
+		// await updateTsPlugin({ absPaths: absPaths });
 	}
 
 	vscode.window.showInformationMessage("Successfully changed version");
@@ -152,7 +202,7 @@ async function removeVersionGlobal(
 	);
 }
 
-async function loadCurrentlySelectedVersion(
+/* async function loadCurrentlySelectedVersion(
 	context: vscode.ExtensionContext
 ): Promise<void> {
 	if (!getConfig().experimentalHinting) {
@@ -165,9 +215,9 @@ async function loadCurrentlySelectedVersion(
 	}
 	const absPaths = await getAbsolutePathsToDefinitions(currentVersion);
 	await updateTsPlugin({ absPaths: absPaths });
-}
+} */
 
-async function updateTsPlugin(config: PluginConfig): Promise<void> {
+/* async function updateTsPlugin(config: PluginConfig): Promise<void> {
 	const tsExtension = vscode.extensions.getExtension(tsExtensionId);
 	if (!tsExtension) {
 		return;
@@ -185,4 +235,38 @@ async function updateTsPlugin(config: PluginConfig): Promise<void> {
 	}
 
 	api.configurePlugin(tsPluginId, config);
+} */
+
+let oldAbsPaths: string[] = [];
+const fileTypes: Record<string, string> = {
+	ts: "typescript",
+	js: "javascript",
+};
+
+async function updateLanguageServer(newAbsPaths: vscode.Uri[]): Promise<void> {
+	for (const path of oldAbsPaths) {
+		const documentIdentifier: TextDocumentIdentifier = {
+			uri: path,
+		};
+
+		await client.sendNotification("textdocument/didClose", {
+			textDocument: documentIdentifier,
+		});
+	}
+	oldAbsPaths = newAbsPaths.map((u) => u.fsPath);
+
+	for (const uri of newAbsPaths) {
+		const textDocument: TextDocumentItem = {
+			uri: uri.fsPath,
+			languageId: fileTypes[uri.fsPath.split(".").at(-1) ?? "ts"],
+			version: 1,
+			text: new TextDecoder().decode(
+				await vscode.workspace.fs.readFile(uri)
+			),
+		};
+
+		await client.sendNotification("textdocument/didOpen", {
+			textDocument: textDocument,
+		});
+	}
 }

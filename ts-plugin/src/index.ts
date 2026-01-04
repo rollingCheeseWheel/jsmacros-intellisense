@@ -1,7 +1,7 @@
 import * as ts from "typescript";
 import { PluginConfig } from "./config";
 
-/* IMPORTANT: remember to run `npm run compile` before running the extension so the plugin gets compiled */
+/* IMPORTANT: remember to run `tsc` or `tsc --watch` before running the extension so the plugin gets compiled */
 
 export = function init({ typescript }: { typescript: typeof ts }): {
 	create(info: ts.server.PluginCreateInfo): ts.LanguageService;
@@ -15,7 +15,11 @@ export = function init({ typescript }: { typescript: typeof ts }): {
 	let fileWatchers: ts.FileWatcher[] = [];
 
 	function log(message: string): void {
-		project?.log("ts-plugin:\t" + message);
+		project?.log("jsm-ts-plugin:\t" + message);
+	}
+
+	function normalizePath(path: string): string {
+		return path.replace(/\\/g, "/");
 	}
 
 	return {
@@ -53,8 +57,6 @@ export = function init({ typescript }: { typescript: typeof ts }): {
 			// oldConfig = newConfig;
 			// newConfig = config;
 
-			/* Steam */
-
 			// for (const absPath of oldConfig.absPaths) {
 			// 	log(`removing old file ${absPath}`);
 			// 	project.projectService.closeClientFile(absPath);
@@ -62,59 +64,123 @@ export = function init({ typescript }: { typescript: typeof ts }): {
 
 			// oldConfig = config;
 
-			// for (const absPath of oldConfig.absPaths) {
-			// 	log(`removing old file ${absPath}`);
-			// 	project.projectService.openClientFile(
-			// 		absPath,
-			// 		undefined,
-			// 		ts.ScriptKind.TS
-			// 	);
+			/* for (const absPath of oldConfig.absPaths) {
+				log(`removing old file ${absPath}`);
+				project.projectService.openClientFile(
+					absPath,
+					undefined,
+					ts.ScriptKind.TS
+				);
+			}
+
+			log(
+				`earlier typeAcquisition: ${JSON.stringify(
+					typeAcquisition
+				)}`
+			);
+
+			typeAcquisition = project.getTypeAcquisition();
+			typeAcquisition.enable = true;
+			typeAcquisition.include = Array.from(
+				new Set(typeAcquisition.include.concat(config.absPaths))
+			);
+			typeAcquisition.exclude = typeAcquisition.exclude
+				.concat(oldConfig.absPaths)
+				.filter((p) => !config.absPaths.includes(p));
+			oldConfig = config;
+
+			log(
+				`modified typeAcquisition: ${JSON.stringify(
+					typeAcquisition
+				)}`
+			);
+
+			project.setTypeAcquisition(typeAcquisition);
+
+			log("reloading projects");
+			project.projectService.reloadProjects(); */
+
+			/* for (const watcher of fileWatchers) {
+				watcher.close();
+			}
+
+			log("closed file watchers if any");
+
+			fileWatchers = [];
+
+			for (const path of config.absPaths) {
+				fileWatchers.push(serverHost.watchFile(path, () => {}));
+				log(`watching file ${path}`);
+			}
+
+			log("finished updating config");
+			log("reloading projects");
+
+			project.projectService.reloadProjects(); */
+
+			const normalizedNewPaths = config.absPaths.map(normalizePath);
+			const normalizedOldPaths = oldConfig.absPaths.map(normalizePath);
+
+			oldConfig = config;
+
+			/* let typeAcquisition = project.getTypeAcquisition();
+
+			typeAcquisition.exclude = [
+				...typeAcquisition.exclude,
+				...normalizedOldPaths,
+			].filter((p) => !normalizedNewPaths.includes(p));
+
+			log(`excluded: ${typeAcquisition.exclude.join(", ")}`);
+
+			typeAcquisition.include = [
+				...typeAcquisition.include,
+				...normalizedNewPaths,
+			].filter((p) => !normalizedOldPaths.includes(p));
+
+			log(`included: ${typeAcquisition.include.join(", ")}`);
+
+			typeAcquisition.enable = true;
+			typeAcquisition.disableFilenameBasedTypeAcquisition = false;
+
+			oldConfig = config;
+
+			project.setTypeAcquisition(typeAcquisition); */
+
+			// log(`removing files: ${normalizedOldPaths.join(", ")}`);
+			// for (const path of normalizedOldPaths) {
+			// 	const scriptInfo = project.getScriptInfo(path);
+			// 	project.removeFile(scriptInfo, project.fileExists(path), true);
 			// }
+
+			log(`closing file watchers`);
+
+			fileWatchers.map((w) => w.close());
+			fileWatchers = [];
+
+			log(`adding files: ${normalizedNewPaths.join(", ")}`);
+			for (const path of normalizedNewPaths) {
+				// const scriptInfo = project.getScriptInfo(path);
+				// project.addRoot(scriptInfo);
+				fileWatchers.push(
+					project.projectService.host.watchFile(path, () => {
+						project.refreshDiagnostics();
+					})
+				);
+			}
 
 			// log(
-			// 	`earlier typeAcquisition: ${JSON.stringify(
-			// 		typeAcquisition
-			// 	)}`
+			// 	`currently loaded root files: ${project
+			// 		.getRootFiles()
+			// 		.join(", ")}`
 			// );
-
-			// typeAcquisition = project.getTypeAcquisition();
-			// typeAcquisition.enable = true;
-			// typeAcquisition.include = Array.from(
-			// 	new Set(typeAcquisition.include.concat(config.absPaths))
-			// );
-			// typeAcquisition.exclude = typeAcquisition.exclude
-			// 	.concat(oldConfig.absPaths)
-			// 	.filter((p) => !config.absPaths.includes(p));
-			// oldConfig = config;
 
 			// log(
-			// 	`modified typeAcquisition: ${JSON.stringify(
-			// 		typeAcquisition
-			// 	)}`
+			// 	`updated graph (false if new files where added): ${project.updateGraph()}`
 			// );
 
-			// project.setTypeAcquisition(typeAcquisition);
+			log(`reloading projects`);
 
-			// log("reloading projects");
-			// project.projectService.reloadProjects();
-
-			// for (const watcher of fileWatchers) {
-			// 	watcher.close();
-			// }
-
-			// log("closed file watchers if any");
-
-			// fileWatchers = [];
-
-			// for (const path of config.absPaths) {
-			// 	fileWatchers.push(serverHost.watchFile(path, () => {}));
-			// 	log(`watching file ${path}`);
-			// }
-
-			// log("finished updating config");
-			// log("reloading projects");
-
-			// project.projectService.reloadProjects();
+			project.projectService.reloadProjects();
 		},
 	};
 };
