@@ -33,18 +33,18 @@ All declarations live in the global extension storage, the list of available ver
 * `assetRegExp`: Regular Expression used to filter for the TS declarations in release assets.
 * `askWhenMultipleWorkspaces`: When actions can only target one workspace ask which one to use.
 
-## Known Issues
+## Common Issues
 
-* Variables might clash, to fix this make the macro a module by importing/exporting something.
+* Variables might clash, use a `// @ts-ignore`. Making the file a module does not work since JsMacros cannot parse ES Modules, the `isolatedModules` option in the tsconfig would otherwise prevent this. (Maybe there is a never GraalJS version that JsMacros could use or it is intentionally disabled) 
 
-```ts
-export {}
-
-let commandBuilder = Chat.getCommandManager().createCommandBuilder("rejoin"); //  might clash
+```js
+// @ts-ignore
+const commandBuilder = Chat.getCommandManager().createCommandBuilder("rejoin"); //  might clash
 commandBuilder.executes(JavaWrapper.methodToJava(rejoin))
 commandBuilder.register()
 
-function rejoin(){ // might clash
+// @ts-ignore
+function rejoin() { // might clash
     GlobalVars.putString("server", World.getCurrentServerAddress().split("/")[1])
     Client.disconnect()
     Time.sleep(1)
@@ -52,4 +52,17 @@ function rejoin(){ // might clash
 }
 ```
 
-* Some delcared variables, for example `event` is of type [`Events.BaseEvent`](https://jsmacros.wagyourtail.xyz/?/1.9.2/xyz/wagyourtail/jsmacros/core/event/BaseEvent.html) and properties like [`text` from `RecvMessage`](https://jsmacros.wagyourtail.xyz/?/1.9.2/xyz/wagyourtail/jsmacros/client/api/event/impl/EventRecvMessage.html) dont exist on it. **This is neither the fault of JsMacros nor the extension**. The best solution is to either cast `event` (in TypeScript files) or use `// @ts-ignore`.
+* If there are any type discrepencies either use `// @ts-ignore` or JSDoc (`@type`). **You need to absolutely certain when overriding the type!**
+```js
+/**
+ * @type {AnvilInventory}
+ */
+// @ts-ignore
+const inventory = Player.openInventory();
+```
+* Most of the time `JsMacros.assertEvent(event, eventType)` overrides the type and raises a runtime exception if the types dont match. Sometimes TS may get confused because multiple asserts might be in the global scope.
+```js
+event.message // Events.BaseEvent doesn't have the members of Events.RecvMessage
+JsMacros.assertEvent(event, "RecvMessage");
+event.message // TS now treats it as Events.RecvMessage
+```
