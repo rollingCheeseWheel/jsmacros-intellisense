@@ -3,8 +3,8 @@ import { getConfig, JsMIntellisenseConfig } from "./config";
 import {
 	editAndSaveTsConfig,
 	generalIncludeGlobs,
-	removeDeclarationsFromTsConfig,
-	updateTsConfig,
+	removeIncludesFromTsConfig,
+	addIncludesToTsConfig,
 } from "./tsconfig";
 import { promises } from "dns";
 
@@ -61,7 +61,7 @@ export async function setCurrentVersion(
 
 		await createOrUpdateVersionJson(dtsUri, { version: version.version });
 
-		await updateTsConfig(
+		await addIncludesToTsConfig(
 			vscode.Uri.joinPath(workspaceFolder.uri, tsConfigFileName)
 		);
 
@@ -98,7 +98,7 @@ export async function removeCurrentVersion(
 			localVersion.workspaceUri!,
 			tsConfigFileName
 		);
-		await removeDeclarationsFromTsConfig(tsConfigUri);
+		await removeIncludesFromTsConfig(tsConfigUri);
 	}
 }
 

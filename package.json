@@ -16,10 +16,7 @@
 	"categories": [
 		"Other"
 	],
-	"activationEvents": [
-		"onLanguage:typescript",
-		"onLanguage:javascript"
-	],
+	"activationEvents": [],
 	"main": "./out/src/extension.js",
 	"contributes": {
 		"commands": [
@@ -89,7 +86,7 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./",
+		"compile": "tsc -p ./ts-plugin && tsc -p ./",
 		"watch": "tsc -watch -p ./",
 		"pretest": "npm run compile && npm run lint",
 		"lint": "eslint src",
@@ -97,7 +94,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "^10.0.10",
-		"@types/node": "22.x",
+		"@types/node": "^22.19.3",
 		"@types/unzipper": "^0.10.11",
 		"@types/vscode": "^1.107.0",
 		"@vscode/test-cli": "^0.0.12",

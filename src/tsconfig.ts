@@ -7,23 +7,22 @@ export const generalIncludeGlobs = [
 	"**/*.ts",
 	"**/*.js",
 ];
-export const compilerOptionsChanges: [string[], (disabling: boolean) => any][] =
-	[
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "skipLibCheck"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "checkJs"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "noEmit"], () => true],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "noCheck"], (e) => !e],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "lib"], () => ["es2022"]],
-		// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-		[["compilerOptions", "isolatedModules"], () => true],
-	];
 
-export async function updateTsConfig(
+type JsonCEntryValue = any | (() => any);
+type JsonCEntry = [string[], JsonCEntryValue];
+
+export const generatedTsConfig: Record<string, JsonCEntryValue> = {
+	compilerOptions: {
+		skipLibCheck: true,
+		checkJs: true,
+		noEmit: true,
+		lib: ["ES2022"],
+		target: "ES2022",
+	},
+	infclude: () => {},
+};
+
+export async function addIncludesToTsConfig(
 	tsConfigUri: vscode.Uri,
 	globPatterns: string[] = generalIncludeGlobs
 ): Promise<void> {
@@ -40,43 +39,44 @@ export async function updateTsConfig(
 	const tsConfigContent = new TextDecoder().decode(
 		await vscode.workspace.fs.readFile(tsConfigUri)
 	);
-	const stdJsonConfig = JSON.parse(tsConfigContent) as TsConfigInclude;
+	const stdJsonConfig = JSON.parse(tsConfigContent) as StrippedTsConfig;
 
 	const includes = Array.from(
-		new Set<string>([...(stdJsonConfig.include ?? []), ...globPatterns])
+		new Set(...(stdJsonConfig.include ?? []), ...globPatterns)
 	);
-	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes, true);
+	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes);
 }
 
-export async function removeDeclarationsFromTsConfig(
+export async function removeIncludesFromTsConfig(
 	tsConfigUri: vscode.Uri
 ): Promise<void> {
 	const tsConfigContent = new TextDecoder().decode(
 		await vscode.workspace.fs.readFile(tsConfigUri)
 	);
-	const stdJsonConfig = JSON.parse(tsConfigContent) as TsConfigInclude;
+	const stdJsonConfig = JSON.parse(tsConfigContent) as StrippedTsConfig;
 
 	const includes = [...(stdJsonConfig.include ?? [])];
-	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes, false);
+	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes);
 }
 
 export async function editAndSaveTsConfig(
 	tsConfigUri: vscode.Uri,
 	content: string,
-	includes: string[],
-	enabling: boolean
+	includes: string[]
 ): Promise<void> {
 	const formattingOptions = {
 		formattingOptions: { tabSize: 4 },
 	};
 
-	for (const [path, fun] of compilerOptionsChanges) {
-		const edits = modify(content, path, fun(enabling), formattingOptions);
+	for (const [path, value] of enumerateConfig()) {
+		let edits;
+		if (typeof value === "function") {
+			edits = modify(content, path, includes, formattingOptions);
+		} else {
+			edits = modify(content, path, value, formattingOptions);
+		}
 		content = applyEdits(content, edits);
 	}
-
-	const edits = modify(content, ["include"], includes, formattingOptions);
-	content = applyEdits(content, edits);
 
 	await vscode.workspace.fs.writeFile(
 		tsConfigUri,
@@ -84,6 +84,30 @@ export async function editAndSaveTsConfig(
 	);
 }
 
-interface TsConfigInclude {
+function enumerateConfig(
+	config: object = generatedTsConfig,
+	depth: number = 0,
+	limit: number = 5
+): JsonCEntry[] {
+	let result: JsonCEntry[] = [];
+
+	if (depth >= limit) {
+		return result;
+	}
+
+	for (const [key, value] of Object.entries(config)) {
+		if (typeof value === "object" && !Array.isArray(value)) {
+			for (let entry of enumerateConfig(value, depth + 1, limit)) {
+				entry[0].unshift(key);
+				result.push(entry);
+			}
+		} else {
+			result.push([[key], value]);
+		}
+	}
+	return result;
+}
+
+interface StrippedTsConfig {
 	include?: string[];
 }
