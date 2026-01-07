@@ -16,46 +16,33 @@ export interface JsMIntellisenseConfig {
 	experimentalHinting: boolean;
 }
 
-export function getConfig(
-	config?: vscode.WorkspaceConfiguration
-): JsMIntellisenseConfig {
-	if (!config) {
-		config = vscode.workspace.getConfiguration("jsmacros-intellisense");
-	}
+export function getConfig(): JsMIntellisenseConfig {
+	const config = vscode.workspace.getConfiguration("jsmacros-intellisense");
 
+	let result: JsMIntellisenseConfig = defaultConfig;
 	const repoUrl = config.get<string>("repoUrl");
-	if (!repoUrl) {
-		throw new Error("Config: repoUrl not specified");
-	}
-	const matches = /^https:\/\/github.com\/([\w.-]+)\/([\w.-]+)$/.exec(
-		repoUrl
-	);
-	if (!matches || !matches[1] || !matches[2]) {
-		throw new Error("Repo URL doesn't match pattern");
-	}
-
-	const assetRegexString = config.get<string>("assetRegExp");
-	if (!assetRegexString) {
-		throw new Error("Config: repoUrl not specified");
+	if (repoUrl) {
+		const matches = /^https:\/\/github.com\/([\w.-]+)\/([\w.-]+)$/.exec(
+			repoUrl
+		);
+		if (matches) {
+			result.owner = matches[1] ? matches[1] : result.owner;
+			result.repo = matches[2] ? matches[2] : result.repo;
+		}
 	}
 
-	const askWhenMultipleWorkspaces = config.get<boolean>(
-		"askWhenMultipleWorkspaces"
-	);
-	if (askWhenMultipleWorkspaces === undefined) {
-		throw new Error("Config: askWhenMultipleWorkspaces not specified");
-	}
+	const assetRegExp = config.get<string>("assetRegExp");
+	result.assetRegExp = assetRegExp
+		? new RegExp(assetRegExp)
+		: result.assetRegExp;
 
-	const experimentalHinting = config.get<boolean>("experimentalHinting");
-	if (experimentalHinting === undefined) {
-		throw new Error("Config: experimentalHinting not specified");
-	}
+	result.askWhenMultipleWorkspaces =
+		config.get<boolean>("askWhenMultipleWorkspaces") ??
+		result.askWhenMultipleWorkspaces;
 
-	return {
-		owner: matches[1],
-		repo: matches[2],
-		assetRegExp: new RegExp(assetRegexString),
-		askWhenMultipleWorkspaces: askWhenMultipleWorkspaces,
-		experimentalHinting: experimentalHinting,
-	};
+	result.experimentalHinting =
+		config.get<boolean>("experimentalHinting") ??
+		result.experimentalHinting;
+
+	return result;
 }

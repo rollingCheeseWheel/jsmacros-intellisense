@@ -7,8 +7,6 @@ import {
 	Version,
 	setCurrentVersion,
 	removeCurrentVersion as removeVersionLocal,
-	getAbsolutePathsToDefinitions,
-	getCurrentVersion,
 	getAbsoluteUrisToDefinitions,
 } from "./versionStorage";
 import { downloadAndExtractDeclarations } from "./download";
@@ -24,53 +22,10 @@ import {
 } from "vscode-languageclient/node";
 import * as path from "path";
 
-const tsExtensionId = "vscode.typescript-language-features";
-const tsPluginId = "ts-plugin";
-const restartTsServerCommand = "typescript.restartTsServer";
-
-let client: LanguageClient;
-
 export async function activate(
 	context: vscode.ExtensionContext
 ): Promise<void> {
 	await vscode.workspace.fs.createDirectory(context.globalStorageUri); // path isn't automatically created when installing extension
-
-	const lsPath = context.asAbsolutePath(
-		path.join(
-			"node_modules",
-			"typescript-language-server",
-			"lib",
-			"cli.mjs"
-		)
-	);
-	const serverOptions: LanguageServerOptions = {
-		run: {
-			module: lsPath,
-			args: ["--stdio"],
-			transport: TransportKind.ipc,
-		},
-		debug: {
-			module: lsPath,
-			args: ["--stdio"],
-			transport: TransportKind.ipc,
-		},
-	};
-
-	const clientOptions: LanguageClientOptions = {
-		documentSelector: [
-			{ scheme: "file", language: "typescript" },
-			{ scheme: "file", language: "javascript" },
-		],
-		// synchronize: {
-		// 	fileEvents: vscode.workspace.createFileSystemWatcher()
-		// }
-	};
-
-	client = new LanguageClient(
-		"JsMacros Intellisense LSP Client",
-		serverOptions,
-		clientOptions
-	);
 
 	const disposables = registerCommands(context, [
 		["jsmacros-intellisense.fetchNewest", fetchNewest],
@@ -161,7 +116,6 @@ async function changeVersion(
 
 	if (getConfig().experimentalHinting) {
 		const absPaths = await getAbsoluteUrisToDefinitions(version);
-		await updateLanguageServer(absPaths);
 		// await updateTsPlugin({ absPaths: absPaths });
 	}
 
@@ -236,37 +190,3 @@ async function removeVersionGlobal(
 
 	api.configurePlugin(tsPluginId, config);
 } */
-
-let oldAbsPaths: string[] = [];
-const fileTypes: Record<string, string> = {
-	ts: "typescript",
-	js: "javascript",
-};
-
-async function updateLanguageServer(newAbsPaths: vscode.Uri[]): Promise<void> {
-	for (const path of oldAbsPaths) {
-		const documentIdentifier: TextDocumentIdentifier = {
-			uri: path,
-		};
-
-		await client.sendNotification("textdocument/didClose", {
-			textDocument: documentIdentifier,
-		});
-	}
-	oldAbsPaths = newAbsPaths.map((u) => u.fsPath);
-
-	for (const uri of newAbsPaths) {
-		const textDocument: TextDocumentItem = {
-			uri: uri.fsPath,
-			languageId: fileTypes[uri.fsPath.split(".").at(-1) ?? "ts"],
-			version: 1,
-			text: new TextDecoder().decode(
-				await vscode.workspace.fs.readFile(uri)
-			),
-		};
-
-		await client.sendNotification("textdocument/didOpen", {
-			textDocument: textDocument,
-		});
-	}
-}

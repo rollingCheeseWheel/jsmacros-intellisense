@@ -1,16 +1,8 @@
 import * as vscode from "vscode";
 import { getConfig, JsMIntellisenseConfig } from "./config";
-import {
-	editAndSaveTsConfig,
-	generalIncludeGlobs,
-	removeIncludesFromTsConfig,
-	addIncludesToTsConfig,
-} from "./tsconfig";
-import { promises } from "dns";
+import { addJsmTsConfig, tsConfigFileName, typesDirectoryName } from "./tsconfig";
 
 export const versionJsonName = "version.json";
-export const dtsDirectoryName = ".jsm_types";
-export const tsConfigFileName = "tsconfig.json";
 
 export const currentVersionStateKey = "jsmacros-intellisense-current";
 
@@ -48,20 +40,20 @@ export async function setCurrentVersion(
 
 		const dtsUri = vscode.Uri.joinPath(
 			workspaceFolder.uri,
-			dtsDirectoryName
+			typesDirectoryName
 		);
 		await vscode.workspace.fs.createDirectory(dtsUri);
 		await vscode.workspace.fs.delete(dtsUri, { recursive: true });
 		await vscode.workspace.fs.createDirectory(dtsUri);
 		await vscode.workspace.fs.copy(
 			version.uri,
-			vscode.Uri.joinPath(workspaceFolder.uri, dtsDirectoryName),
+			vscode.Uri.joinPath(workspaceFolder.uri, typesDirectoryName),
 			{ overwrite: true }
 		);
 
 		await createOrUpdateVersionJson(dtsUri, { version: version.version });
 
-		await addIncludesToTsConfig(
+		await addJsmTsConfig(
 			vscode.Uri.joinPath(workspaceFolder.uri, tsConfigFileName)
 		);
 
@@ -91,14 +83,13 @@ export async function removeCurrentVersion(
 
 		const dtsDirectoryUri = vscode.Uri.joinPath(
 			localVersion.workspaceUri!,
-			dtsDirectoryName
+			typesDirectoryName
 		);
 		await vscode.workspace.fs.delete(dtsDirectoryUri, { recursive: true });
 		const tsConfigUri = vscode.Uri.joinPath(
 			localVersion.workspaceUri!,
 			tsConfigFileName
 		);
-		await removeIncludesFromTsConfig(tsConfigUri);
 	}
 }
 
@@ -157,7 +148,7 @@ export async function getCurrentVersionString(
 ): Promise<string | undefined> {
 	const versionDirUri = vscode.Uri.joinPath(
 		workspaceFolder.uri,
-		dtsDirectoryName
+		typesDirectoryName
 	);
 	const versionJson = await verifyStructureLocal(versionDirUri);
 	if (!versionJson) {

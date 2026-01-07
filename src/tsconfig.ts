@@ -1,17 +1,23 @@
 import * as vscode from "vscode";
-import { dtsDirectoryName } from "./versionStorage";
-import { applyEdits, modify } from "jsonc-parser";
+import {
+	applyEdits,
+	findNodeAtLocation,
+	modify,
+	parseTree,
+} from "jsonc-parser";
 
-export const generalIncludeGlobs = [
-	`${dtsDirectoryName}/**/*.d.ts`,
+export const tsConfigFileName = "tsconfig.json";
+export const typesDirectoryName = ".jsm_types";
+
+export const includeGlobs = [
+	`${typesDirectoryName}/**/*.d.ts`,
 	"**/*.ts",
 	"**/*.js",
 ];
 
-type JsonCEntryValue = any | (() => any);
-type JsonCEntry = [string[], JsonCEntryValue];
+type JsonCEntry = [string[], any];
 
-export const generatedTsConfig: Record<string, JsonCEntryValue> = {
+export const generatedTsConfig: Record<string, any> = {
 	compilerOptions: {
 		skipLibCheck: true,
 		checkJs: true,
@@ -19,15 +25,15 @@ export const generatedTsConfig: Record<string, JsonCEntryValue> = {
 		lib: ["ES2022"],
 		target: "ES2022",
 	},
-	infclude: () => {},
+	include: (includes: string[]) => includes,
 };
 
-export async function addIncludesToTsConfig(
+export async function addJsmTsConfig(
 	tsConfigUri: vscode.Uri,
-	globPatterns: string[] = generalIncludeGlobs
+	globPatterns: string[] = includeGlobs
 ): Promise<void> {
 	try {
-		await vscode.workspace.fs.readFile(tsConfigUri);
+		await vscode.workspace.fs.stat(tsConfigUri);
 	} catch {
 		const content = JSON.stringify({}, null, "\t");
 		await vscode.workspace.fs.writeFile(
@@ -42,20 +48,8 @@ export async function addIncludesToTsConfig(
 	const stdJsonConfig = JSON.parse(tsConfigContent) as StrippedTsConfig;
 
 	const includes = Array.from(
-		new Set(...(stdJsonConfig.include ?? []), ...globPatterns)
+		new Set([...(stdJsonConfig.include ?? []), ...globPatterns])
 	);
-	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes);
-}
-
-export async function removeIncludesFromTsConfig(
-	tsConfigUri: vscode.Uri
-): Promise<void> {
-	const tsConfigContent = new TextDecoder().decode(
-		await vscode.workspace.fs.readFile(tsConfigUri)
-	);
-	const stdJsonConfig = JSON.parse(tsConfigContent) as StrippedTsConfig;
-
-	const includes = [...(stdJsonConfig.include ?? [])];
 	await editAndSaveTsConfig(tsConfigUri, tsConfigContent, includes);
 }
 
@@ -68,13 +62,24 @@ export async function editAndSaveTsConfig(
 		formattingOptions: { tabSize: 4 },
 	};
 
-	for (const [path, value] of enumerateConfig()) {
-		let edits;
+	const tree = parseTree(content);
+
+	if (!tree) {
+		throw new Error(`Error parsing ${tsConfigUri.fsPath}`);
+	}
+
+	for (let [path, value] of enumerateConfig()) {
 		if (typeof value === "function") {
-			edits = modify(content, path, includes, formattingOptions);
-		} else {
-			edits = modify(content, path, value, formattingOptions);
+			value = value(includes);
 		}
+		
+		if (Array.isArray(value)) {
+			const previousValues = findNodeAtLocation(tree, path)?.value;
+			if (Array.isArray(previousValues)) {
+				value = value.concat(previousValues);
+			}
+		}
+		const edits = modify(content, path, value, formattingOptions);
 		content = applyEdits(content, edits);
 	}
 

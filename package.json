@@ -75,11 +75,6 @@
 					"markdownDescription": "When actions can only target one workspace ask which to use.",
 					"type": "boolean",
 					"default": true
-				},
-				"jsmacros-intellisense.experimentalHinting": {
-					"markdownDescription": "Use a TypeScript server plugin for hinting instead of generating a `tsconfig.json` and copying the declarations into the macros folder",
-					"type": "boolean",
-					"default": false
 				}
 			}
 		}
