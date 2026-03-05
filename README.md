@@ -19,7 +19,7 @@ Install the extension from the [VSCode marketplace](https://marketplace.visualst
 ## Common Issues
 
 * JsMacros (specifically GraalJS) cannot handle TypeScript, either compile or use the following workarounds in JavaScript.
-* Variables might clash, use a `// @ts-ignore`. Making the file a module does not work since JsMacros cannot parse ES Modules, the `isolatedModules` option in the tsconfig would otherwise prevent this. (Maybe there is a never GraalJS version that JsMacros could use or it is intentionally disabled) 
+* Variables might clash, use a `// @ts-ignore`. Making the file a module does not work since JsMacros cannot parse ES Modules, the `isolatedModules` option in the tsconfig would otherwise prevent this. (development only)
 
 ```js
 // @ts-ignore
